@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# knurl-persona — launch Claude Code with a custom companion personality
+#
+# Usage:
+#   knurl-persona [options] [-- claude-args...]
+#
+# Options:
+#   -p, --persona FILE   Path to persona file (default: persona.txt next to this script)
+#   -n, --name NAME      Override companion name
+#   -v, --verbose        Print interception logs
+#   -P, --port PORT      Proxy port (default: 18888)
+#   --proxy-only         Start proxy only, don't launch claude
+#   -h, --help           Show this help
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Defaults
+PERSONA_FILE="$SCRIPT_DIR/persona.txt"
+OVERRIDE_NAME=""
+VERBOSE=0
+PROXY_PORT=18888
+PROXY_ONLY=0
+CLAUDE_ARGS=()
+
+# Parse args
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -p|--persona) PERSONA_FILE="$2"; shift 2 ;;
+        -n|--name)    OVERRIDE_NAME="$2"; shift 2 ;;
+        -v|--verbose) VERBOSE=1; shift ;;
+        -P|--port)    PROXY_PORT="$2"; shift 2 ;;
+        --proxy-only) PROXY_ONLY=1; shift ;;
+        -h|--help)
+            sed -n '3,/^$/s/^# \?//p' "$0"
+            exit 0
+            ;;
+        --)           shift; CLAUDE_ARGS=("$@"); break ;;
+        *)            CLAUDE_ARGS+=("$1"); shift ;;
+    esac
+done
+
+# Check dependencies
+if ! command -v mitmdump &>/dev/null; then
+    echo "error: mitmdump not found. Install with: brew install mitmproxy" >&2
+    exit 1
+fi
+if ! command -v claude &>/dev/null; then
+    echo "error: claude not found. Install Claude Code first." >&2
+    exit 1
+fi
+
+# Resolve persona file
+if [[ ! -f "$PERSONA_FILE" ]]; then
+    echo "error: persona file not found: $PERSONA_FILE" >&2
+    exit 1
+fi
+
+# Export config for the mitmproxy addon
+export KNURL_PERSONA="$PERSONA_FILE"
+export KNURL_NAME="$OVERRIDE_NAME"
+export KNURL_VERBOSE="$VERBOSE"
+
+# Cleanup on exit
+cleanup() {
+    [[ -n "${MITM_PID:-}" ]] && kill "$MITM_PID" 2>/dev/null && wait "$MITM_PID" 2>/dev/null
+}
+trap cleanup EXIT INT TERM
+
+# Start mitmdump
+MITM_ARGS=(-s "$SCRIPT_DIR/persona.py" -p "$PROXY_PORT" --ssl-insecure -q)
+if [[ "$VERBOSE" == "1" ]]; then
+    mitmdump "${MITM_ARGS[@]}" &
+else
+    mitmdump "${MITM_ARGS[@]}" 2>/dev/null &
+fi
+MITM_PID=$!
+sleep 1
+
+# Verify mitmdump is running
+if ! kill -0 "$MITM_PID" 2>/dev/null; then
+    echo "error: mitmdump failed to start (port $PROXY_PORT in use?)" >&2
+    exit 1
+fi
+
+PERSONA_PREVIEW="$(head -c 60 "$PERSONA_FILE")…"
+echo "knurl-persona active (port $PROXY_PORT, pid $MITM_PID)"
+echo "  persona: $PERSONA_PREVIEW"
+[[ -n "$OVERRIDE_NAME" ]] && echo "  name: $OVERRIDE_NAME"
+[[ "$VERBOSE" == "1" ]] && echo "  verbose: on"
+
+if [[ "$PROXY_ONLY" == "1" ]]; then
+    echo "  proxy-only mode — waiting (Ctrl+C to stop)"
+    wait "$MITM_PID"
+else
+    # Launch claude through the proxy
+    HTTPS_PROXY="http://127.0.0.1:$PROXY_PORT" \
+    HTTP_PROXY="http://127.0.0.1:$PROXY_PORT" \
+    NODE_TLS_REJECT_UNAUTHORIZED=0 \
+        claude "${CLAUDE_ARGS[@]}"
+fi
