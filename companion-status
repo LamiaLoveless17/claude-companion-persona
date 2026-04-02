@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# companion-status — show before/after persona injection state
+#
+# Reads the state file written by persona.py and displays a
+# comparison card. Useful for demos and screenshots.
+
+STATE_FILE="${KNURL_STATE:-/tmp/companion-persona-state.json}"
+
+if [[ ! -f "$STATE_FILE" ]]; then
+    echo "  No interceptions yet. Start claude-companion-persona and chat a bit."
+    exit 0
+fi
+
+python3 - "$STATE_FILE" << 'PYTHON'
+import json, sys, unicodedata
+
+with open(sys.argv[1]) as f:
+    s = json.load(f)
+
+W = 56  # card inner width (display columns)
+SEP = "─" * W
+DSEP = "═" * W
+
+
+def display_width(text):
+    """Calculate display width accounting for wide (CJK) characters."""
+    w = 0
+    for ch in text:
+        if unicodedata.east_asian_width(ch) in ("W", "F"):
+            w += 2
+        else:
+            w += 1
+    return w
+
+
+def pad_right(text, width):
+    """Pad text to exact display width."""
+    dw = display_width(text)
+    return text + " " * max(0, width - dw)
+
+
+def is_cjk(ch):
+    return unicodedata.east_asian_width(ch) in ("W", "F")
+
+
+def wrap_cjk(text, width, indent=2):
+    """Word-wrap text: by word for Latin, by character for CJK."""
+    prefix = " " * indent
+    lines = []
+    line = prefix
+    line_w = indent
+    word = ""
+    word_w = 0
+
+    def flush_word():
+        nonlocal line, line_w, word, word_w
+        if not word:
+            return
+        if line_w + word_w > width and line.strip():
+            lines.append(line)
+            line = prefix + word
+            line_w = indent + word_w
+        else:
+            line += word
+            line_w += word_w
+        word = ""
+        word_w = 0
+
+    for ch in text:
+        cw = 2 if is_cjk(ch) else 1
+        if ch == "\n":
+            flush_word()
+            lines.append(line)
+            line = prefix
+            line_w = indent
+        elif is_cjk(ch):
+            flush_word()
+            if line_w + cw > width and line.strip():
+                lines.append(line)
+                line = prefix + ch
+                line_w = indent + cw
+            else:
+                line += ch
+                line_w += cw
+        elif ch == " ":
+            flush_word()
+            if line_w + 1 <= width:
+                line += " "
+                line_w += 1
+        else:
+            word += ch
+            word_w += cw
+    flush_word()
+    if line.strip():
+        lines.append(line)
+    return lines
+
+
+def row(text):
+    print(f"  ║{pad_right(text, W)}║")
+
+
+def bar(val, max_val=100, width=20):
+    filled = int(val / max_val * width) if max_val else 0
+    return "█" * filled + "░" * (width - filled)
+
+
+name = s.get("original_name", "?")
+species = s.get("species", "?")
+rarity = s.get("rarity", "?").upper()
+stats = s.get("stats", {})
+orig = s.get("original_personality", "")
+injected = s.get("injected_personality", "")
+reaction = s.get("last_reaction", "(waiting...)")
+reason = s.get("reason", "")
+ts = s.get("timestamp", "")
+inj_name = s.get("injected_name", name)
+
+print()
+print(f"  ╔{DSEP}╗")
+row(f"{'COMPANION PERSONA STATUS':^{W}}")
+print(f"  ╠{DSEP}╣")
+row(f"  {name}  •  {rarity} {species}")
+
+if stats:
+    print(f"  ╟{SEP}╢")
+    for k, v in stats.items():
+        label = k.upper().ljust(12)
+        b = bar(v)
+        row(f"  {label} {b} {v:>3}")
+
+print(f"  ╠{DSEP}╣")
+row("  ✗ ORIGINAL PERSONALITY")
+row("")
+for line in wrap_cjk(f'"{orig}"', W, indent=2):
+    row(line)
+
+row("")
+print(f"  ╟{SEP}╢")
+row("  ✓ INJECTED PERSONALITY")
+row("")
+for line in wrap_cjk(f'"{injected}"', W, indent=2):
+    row(line)
+
+if inj_name != name:
+    row("")
+    row(f"  name: {name} → {inj_name}")
+
+row("")
+print(f"  ╠{DSEP}╣")
+row("  💬 LAST REACTION")
+row("")
+for line in wrap_cjk(reaction, W, indent=2):
+    row(line)
+
+row("")
+print(f"  ╟{SEP}╢")
+row(f"  {reason}  •  {ts}")
+print(f"  ╚{DSEP}╝")
+print()
+PYTHON
