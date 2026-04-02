@@ -1,5 +1,5 @@
 """
-knurl-persona — mitmproxy addon that hijacks Claude Code's companion personality.
+claude-companion-persona — mitmproxy addon that overrides Claude Code's companion personality.
 
 Reads a persona file (default: persona.txt next to this script) and injects it
 into the buddy_react API payload so the companion speaks however you want.

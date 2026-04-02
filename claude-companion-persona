@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# knurl-persona — launch Claude Code with a custom companion personality
+# claude-companion-persona — launch Claude Code with a custom companion personality
 #
 # Usage:
-#   knurl-persona [options] [-- claude-args...]
+#   claude-companion-persona [options] [-- claude-args...]
 #
 # Options:
 #   -p, --persona FILE   Path to persona file (default: persona.txt next to this script)
@@ -85,7 +85,7 @@ if ! kill -0 "$MITM_PID" 2>/dev/null; then
 fi
 
 PERSONA_PREVIEW="$(head -c 60 "$PERSONA_FILE")…"
-echo "knurl-persona active (port $PROXY_PORT, pid $MITM_PID)"
+echo "companion-persona active (port $PROXY_PORT, pid $MITM_PID)"
 echo "  persona: $PERSONA_PREVIEW"
 [[ -n "$OVERRIDE_NAME" ]] && echo "  name: $OVERRIDE_NAME"
 [[ "$VERBOSE" == "1" ]] && echo "  verbose: on"

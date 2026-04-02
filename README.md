@@ -1,8 +1,8 @@
-# knurl-persona
+# claude-companion-persona
 
 Override your Claude Code companion's personality with a single text file.
 
-Claude Code ships with a companion creature (the little owl next to your input box) whose personality is controlled server-side. **knurl-persona** intercepts the API call via a local proxy and swaps in your custom persona — no patching, no forks.
+Claude Code ships with a companion creature (the little critter next to your input box) whose personality is controlled server-side. **claude-companion-persona** intercepts the API call via a local proxy and swaps in your custom persona — no patching, no forks.
 
 ## How it works
 
@@ -13,7 +13,7 @@ Claude Code  ──HTTPS_PROXY──▶  mitmdump  ──▶  Anthropic API
                           swaps personality field
 ```
 
-The companion's `buddy_react` API sends a `personality` field with each request. knurl-persona intercepts this and replaces it with whatever you write in a text file (max 200 characters, enforced by the API).
+The companion's `buddy_react` API sends a `personality` field with each request. claude-companion-persona intercepts this and replaces it with whatever you write in a text file (max 200 characters, enforced by the API).
 
 ## Quick start
 
@@ -22,21 +22,21 @@ The companion's `buddy_react` API sends a `personality` field with each request.
 brew install mitmproxy
 
 # Clone
-git clone https://github.com/YOUR_USERNAME/knurl-persona.git
-cd knurl-persona
+git clone https://github.com/anthropics-fans/claude-companion-persona.git
+cd claude-companion-persona
 
 # Edit persona.txt (or pick a preset)
 cp personas/catgirl-zh.txt persona.txt
 
 # Launch — starts proxy and claude in one command
-chmod +x knurl-persona
-./knurl-persona
+chmod +x claude-companion-persona
+./claude-companion-persona
 ```
 
 ## Usage
 
 ```
-knurl-persona [options] [-- claude-args...]
+claude-companion-persona [options] [-- claude-args...]
 
 Options:
   -p, --persona FILE   Path to persona file (default: persona.txt)
@@ -51,16 +51,16 @@ Options:
 
 ```bash
 # Use a preset persona
-./knurl-persona -p personas/pirate.txt
+./claude-companion-persona -p personas/pirate.txt
 
 # Rename the companion
-./knurl-persona -n "Captain" -p personas/pirate.txt
+./claude-companion-persona -n "Captain" -p personas/pirate.txt
 
 # Debug mode — see raw payloads
-./knurl-persona -v
+./claude-companion-persona -v
 
 # Proxy only (if you want to start claude separately)
-./knurl-persona --proxy-only &
+./claude-companion-persona --proxy-only &
 HTTPS_PROXY=http://127.0.0.1:18888 NODE_TLS_REJECT_UNAUTHORIZED=0 claude
 ```
 
