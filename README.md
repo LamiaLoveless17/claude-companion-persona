@@ -22,7 +22,7 @@ The companion's `buddy_react` API sends a `personality` field with each request.
 brew install mitmproxy
 
 # Clone
-git clone https://github.com/anthropics-fans/claude-companion-persona.git
+git clone https://github.com/LamiaLoveless17/claude-companion-persona.git
 cd claude-companion-persona
 
 # Edit persona.txt (or pick a preset)
